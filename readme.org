@@ -1,0 +1,26 @@
+#+title: AOC 2016 in 6502 Assembly
+
+After playing with so many high level languages it feels good
+sometimes to go low level again. I used to like 6502 assembly a lot
+but I never did anything big with it. So I try to solve at least some
+of the [[http://adventofcode.com/2016][Advent of Code 2016]] challenges just in 6502 assembly to
+remember these good times.
+
+* Build and run instructions
+
+To build you need to have the [[http://www.floodgap.com/retrotech/xa/][xa]] cross-assembler installed. Just
+issuing =make= should take care of it then. The =.prg= output files
+should be runnable on a C64 emulator. E.g. to run them in [[http://vice-emu.sourceforge.net/][VICE]] you can
+issue the command
+
+#+begin_example
+x64 day1-part1.prg
+#+end_example
+
+Since =.prg= files are quite small (usually smaller than the source
+itself) I also include them into this repository for convenience so
+you don't necessarily have to build them yourself.
+
+Currently the problem input is hardcoded, so you have to change the
+source and rebuild to try out other inputs. But I'm thinking about
+implementing other options.
