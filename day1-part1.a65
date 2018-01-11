@@ -1,0 +1,314 @@
+#include  "c64def.def"
+
+#define   Tout(a)   .(:lda #<a:ldy #>a:jsr Txtout:.)
+#define   Dout(a)   .(:lda #<a:ldy #>a:jsr Dgtout:.)
+#define   Dinc(a)   .(:lda #<a:sta P1:lda #>a:sta P1+1:jsr increment:.)
+#define   Dcompl(a) .(:lda #<a:sta P1:lda #>a:sta P1+1:jsr complement:.)
+#define   Dneg(a)   .(:lda #<a:sta P1:lda #>a:sta P1+1:jsr neg:.)
+#define   Dabs(a)   .(:lda #<a:sta P1:lda #>a:sta P1+1:jsr abs:.)
+#define   Dadd(a,b) .( :\
+          lda #<a      :\
+          sta P1       :\
+          lda #>a      :\
+          sta P1+1     :\
+          lda #<b      :\
+          sta P2       :\
+          lda #>b      :\
+          sta P2+1     :\
+          jsr add      :\
+          .)
+
+          .(
+          .word $0801
+          *=$0801
+
+          .word basicend, 10
+          .byt $9e, "2064", 0   ;sys $0810
+basicend  .word 0
+          .byt 0, 0, 0
+
+          .(
+          lda #<input
+	  sta P1
+	  lda #>input
+	  sta P1+1
+          ldy #0
+nextdir   lda (P1), y
+          cmp #" "              ; Skip whitespace
+          bne rp
+          iny
+          bne nextdir
+          inc P1+1
+          jmp nextdir
+rp        cmp #"R"              ; Right?
+          bne left
+          inc dir               ; Right
+          jmp parse_steps
+left      dec dir               ; Otherwise Left
+
+parse_steps
+          ldx #0
+nextchar  iny
+          bne c1
+          inc P1+1
+c1	  lda (P1), y
+	  bne l1
+          jmp endinput
+l1	  cmp #","
+	  beq nextrec
+          sec
+	  sbc #"0"
+	  sta steps+1, x
+	  inx
+	  bne nextchar
+	  jmp overflow
+nextrec   jsr addnum
+          iny
+          bne nextdir
+          inc P1+1
+          jmp nextdir
+endinput  jsr addnum
+          Dneg(sumnorth)
+          Dadd(sumnorth, sumsouth)
+          Dabs(sumsouth)
+          Dneg(sumwest)
+          Dadd(sumwest, sumeast)
+          Dabs(sumeast)
+          Dadd(sumsouth, sumeast)
+          Dout(sumeast)
+          rts
+
+addnum    .(
+          stx steps
+          lda #<sumnorth        ; Prepare second summand by (sumnorth+8*direction)
+          sta P2
+          lda #>sumnorth
+          sta P2+1
+          lda dir
+          and #3
+          asl
+          asl
+          asl
+          clc
+          adc P2
+          sta P2
+          bcc c2
+          inc P2+1
+c2        tya
+          pha
+          lda P1                ; Keep pointer to input
+          pha
+          lda P1+1
+          pha
+
+          lda #<steps
+          sta P1
+          lda #>steps
+          sta P1+1
+          jsr add
+          pla                   ; Restore input pointer
+          sta P1+1
+          pla
+          sta P1
+          pla
+          tay
+          rts
+          .)
+
+/*
+ * First byte of a decimal encodes length, the second byte is the most
+ * significant digit. Negative numbers are stored in 10 complement form.
+ * Therefore a 9 as a first digit indicates a negative number.
+ *
+ * A valid number has a maximum length of 255 and must have at least
+ * length 1
+ */
+steps     .byt 7,0,0,0,0,0,0,0
+sumnorth  .byt 7,0,0,0,0,0,0,0
+sumeast	  .byt 7,0,0,0,0,0,0,0
+sumsouth  .byt 7,0,0,0,0,0,0,0
+sumwest	  .byt 7,0,0,0,0,0,0,0
+dir       .byt 0
+
+plus      .asc " +", TC_CR, 0
+equals    .asc " =", TC_CR, 0
+cr        .asc TC_CR, 0
+comma     .asc ", ", 0
+
+input     .asc "R1, R3, L2, L5, L2, L1, R3, L4, R2, L2, L4, R2, L1, R1, L2, R3, "
+          .asc "L1, L4, R2, L5, R3, R4, L1, R2, L1, R3, L4, R5, L4, L5, R5, L3, "
+          .asc "R2, L3, L3, R1, R3, L4, R2, R5, L4, R1, L1, L1, R5, L2, R1, L2, "
+          .asc "R188, L5, L3, R5, R1, L2, L4, R3, R5, L3, R3, R45, L4, R4, R72, R2, "
+          .asc "R3, L1, R1, L1, L1, R192, L1, L1, L1, L4, R1, L2, L5, "
+          .asc "L3, R5, L3, R3, L4, L3, R1, R4, L2, R2, R3, L5, R3, L1, R1, "
+	  .asc "R4, L2, L3, R1, R3, L4, L3, L4, L2, L2, R1, R3, L5, L1, R4, "
+	  .asc "R2, L4, L1, R3, R3, R1, L5, L2, R4, R4, R2, R1, R5, R5, L4, "
+	  .asc "L1, R5, R3, R4, R5, R3, L1, L2, L4, R1, R4, R5, L2, L3, R4, "
+	  .asc "L4, R2, L2, L4, L2, R5, R1, R4, R3, R5, L4, L4, L5, L5, R3, "
+	  .asc "R4, L1, L3, R2, L2, R1, L3, L5, R5, R5, R3, L4, L2, R4, R5, "
+          .asc "R1, R4, L3", 0
+          .)
+
+neg       .(
+          jsr complement
+          jsr increment
+          rts
+          .)
+
+abs       .(
+          ldy #1
+          lda (P1), y
+          cmp #9
+          beq neg
+          rts
+          .)
+
+;; increment is expecting the reference to the decimal in P1 which is modified in place
+increment .(
+          ldy #0
+          lda (P1), y
+          tay
+          sed                   ; Decimal arithmetic
+          clc
+digit     lda #1
+          adc (P1), y
+          sta (P1), y
+          and #$f0
+          beq end
+          lda (P1), y
+          and #$0f
+          sta (P1), y
+          dey
+          bne digit
+end       cld
+          rts
+          .)
+
+;; complement is expecting the reference to the decimal in P1 which is modified in place
+complement .(
+          ldy #0
+          lda (P1), y
+          tay
+digit     lda #9
+          sec
+          sbc (P1), y
+          sta (P1), y
+          dey
+          bne digit
+          cld
+          rts
+          .)
+
+;; 'add' is expecting summands in P1 and P2. Result is stored in P2,
+;; which should be at least as long as P1
+add       .(
+sum1      =$1000
+sum2      =$1100
+
+          ldy #0                ; Copy summands into local buffers
+          lda (P1), y
+          tay
+l1        lda (P1), y
+          sta sum1, y
+          dey
+          bpl l1
+          ldy #0
+          lda (P2), y
+          tay
+l2        lda (P2), y
+          sta sum2, y
+          dey
+          bpl l2
+
+          sed             ; Use decimal arithmetic
+          clc             ; Clear carry flag which we don't use anyway
+          ldx sum1
+          ldy sum2
+sumdigit  lda sum2, y           ; Sum individual digits
+          adc sum1, x
+          sta sum2, y
+          dey
+          beq sumcarry
+          dex
+          bne sumdigit
+          lda sum1+1
+          cmp #9                ; highest digit of summand a 9 and therefore negative?
+          bne sumcarry
+          iny                   ; then clear last carry
+          lda sum2, y
+          and #$f
+          sta sum2, y
+          dey
+borrow    lda sum2, y           ; and add 9s to following digits
+          adc #9
+          sta sum2, y
+          dey
+          bne borrow
+sumcarry  ldx sum2              ; Now sum up carries
+l3        lda sum2, x
+          lsr
+          lsr
+          lsr
+          lsr
+          clc
+          dex
+          beq overflw           ; Swallow last carry (10s complement arithmetic)
+          adc sum2, x
+          sta sum2, x
+overflw   inx
+          lda sum2, x
+          and #$f
+          sta sum2, x
+          dex
+          bne l3
+          cld                   ; Restore binary arithmetic
+
+          ldy sum2              ; Copy result back into second operand
+j4        lda sum2, y
+          sta (P2), y
+          dey
+          bpl j4
+          rts
+          .)
+
+overflow  .(
+          Tout(error)
+          rts
+error     .asc "BUFFER OVERFLOW!",0
+          .)
+
+Dgtout    .(
+p         =$22
+
+          sta p
+          sty p+1
+          ldy #0
+          lda (p), y
+          tax
+l1        iny
+          lda (p), y
+          clc
+          adc #"0"
+          jsr BSOUT
+          dex
+          bne l1
+          rts
+          .)
+
+Txtout    .(
+p         =$22
+
+          sta p
+          sty p+1
+l1        ldy #0
+          lda (p),y
+          beq le
+          jsr BSOUT
+          inc p
+          bne l1
+          inc p+1
+          bne l1
+le        rts
+          .)
+
+ende      .)
