@@ -1,0 +1,34 @@
+
+Dgtout    .(
+p         =$22
+
+          sta p
+          sty p+1
+          ldy #0
+          lda (p), y
+          tax
+l1        iny
+          lda (p), y
+          clc
+          adc #"0"
+          jsr BSOUT
+          dex
+          bne l1
+          rts
+          .)
+
+Txtout    .(
+p         =$22
+
+          sta p
+          sty p+1
+l1        ldy #0
+          lda (p),y
+          beq le
+          jsr BSOUT
+          inc p
+          bne l1
+          inc p+1
+          bne l1
+le        rts
+          .)

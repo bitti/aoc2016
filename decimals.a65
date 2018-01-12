@@ -1,0 +1,142 @@
+/*
+ * First byte of a decimal encodes length, the second byte is the most
+ * significant digit. Negative numbers are stored in 10 complement form.
+ * Therefore a 9 as a first digit indicates a negative number.
+ *
+ * A valid decimal has a maximum length of 255 and must have at least
+ * length 1
+ */
+
+#define   P1             $fb       /* free pointer */
+#define   P2             $fd       /* free pointer */
+
+;;; Unary functions are expecting a reference to a decimal in P1,
+;;; which is usually modified in place.
+;;;
+;;; The binary funcation add is expecting the paramters in P1 and P2
+;;; whereas the second is modified in place
+
+neg       .(
+          jsr complement
+          jsr increment
+          rts
+          .)
+
+abs       .(
+          ldy #1
+          lda (P1), y
+          cmp #9
+          beq neg
+          rts
+          .)
+
+increment .(
+          ldy #0
+          lda (P1), y
+          tay
+          sed                   ; Decimal arithmetic
+          clc
+digit     lda #1
+          adc (P1), y
+          sta (P1), y
+          and #$f0
+          beq end
+          lda (P1), y
+          and #$0f
+          sta (P1), y
+          dey
+          bne digit
+end       cld
+          rts
+          .)
+
+complement .(
+          ldy #0
+          lda (P1), y
+          tay
+digit     lda #9
+          sec
+          sbc (P1), y
+          sta (P1), y
+          dey
+          bne digit
+          cld
+          rts
+          .)
+
+;; Result is stored in P2, which should be at least as long as P1
+add       .(
+sum1      =$1000
+sum2      =$1100
+
+          ldy #0                ; Copy summands into local buffers
+          lda (P1), y
+          tay
+l1        lda (P1), y
+          sta sum1, y
+          dey
+          bpl l1
+          ldy #0
+          lda (P2), y
+          tay
+l2        lda (P2), y
+          sta sum2, y
+          dey
+          bpl l2
+
+          sed             ; Use decimal arithmetic
+          clc             ; Clear carry flag which we don't use anyway
+          ldx sum1
+          ldy sum2
+sumdigit  lda sum2, y           ; sum individual digits
+          adc sum1, x
+          sta sum2, y
+          dey
+          beq sumcarry
+          dex
+          bne sumdigit
+          lda sum1+1
+          cmp #9                ; highest digit of summand a 9 and therefore negative?
+          bne sumcarry
+          iny                   ; then clear last carry
+          lda sum2, y
+          and #$f
+          sta sum2, y
+          dey
+borrow    lda sum2, y           ; and add 9s to following digits
+          adc #9
+          sta sum2, y
+          dey
+          bne borrow
+sumcarry  ldx sum2              ; Now sum up carries
+l3        lda sum2, x
+          lsr
+          lsr
+          lsr
+          lsr
+          clc
+          dex
+          beq overflw           ; Swallow last carry (10s complement arithmetic)
+          adc sum2, x
+          sta sum2, x
+overflw   inx
+          lda sum2, x
+          and #$f
+          sta sum2, x
+          dex
+          bne l3
+          cld                   ; Restore binary arithmetic
+
+          ldy sum2              ; Copy result back into second operand
+j4        lda sum2, y
+          sta (P2), y
+          dey
+          bpl j4
+          rts
+          .)
+
+overflow  .(
+          Tout(error)
+          rts
+error     .asc "BUFFER OVERFLOW!",0
+          .)
